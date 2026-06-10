@@ -40,6 +40,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - models:/models
+      - files:/files
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +77,7 @@ ${uiService}
 volumes:
   pgdata:
   models:
+  files:
 `;
 }
 
@@ -86,6 +88,7 @@ export function appEnv(config: AgentConfig): string {
     `APP_ORIGIN=${config.appOrigin}`,
     `SEARXNG_URL=http://searxng:8080`,
     `TRANSFORMERS_CACHE=/models`,
+    `FILES_DIR=/files`,
     `MIGRATE=on`,
     `PORT=3001`,
     "",
