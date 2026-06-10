@@ -1,0 +1,21 @@
+{
+  "name": "agent-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Installer and management CLI for the agent self-hosted stack",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs",
+    "build:sea": "bash build-sea.sh"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.0",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.0"
+  }
+}

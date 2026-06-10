@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  sea:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: macos-14
+            target: macos-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: tag must match versions.json
+        run: |
+          manifest_cli=$(node -p "require('./versions.json').cli")
+          if [ "$manifest_cli" != "${{ github.ref_name }}" ]; then
+            echo "::error::versions.json cli ($manifest_cli) does not match tag (${{ github.ref_name }})"
+            exit 1
+          fi
+      - run: CLI_VERSION=${{ github.ref_name }} bash build-sea.sh
+      - name: smoke test
+        run: ./dist/agent-${{ matrix.target }} --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.target }}
+          path: |
+            dist/agent-${{ matrix.target }}
+            dist/agent-${{ matrix.target }}.sha256
+
+  release:
+    needs: sea
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/agent-* --generate-notes
