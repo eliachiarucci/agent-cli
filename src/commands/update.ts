@@ -78,11 +78,13 @@ export async function update(args: string[]): Promise<void> {
   console.log(`Updating: backend ${config.release} → ${manifest.backend}, ui ${config.uiTag} → ${manifest.ui}`);
   config.release = manifest.backend;
   config.uiTag = manifest.ui;
-  saveConfig(config);
   render(config);
 
   composeOrThrow(["pull"]);
   composeOrThrow(["up", "-d", "--remove-orphans"]);
+  // Persist only once the new images are actually running, so a failed update
+  // stays retryable instead of looking "already up to date".
+  saveConfig(config);
   console.log("Waiting for the app to become healthy (migrations run automatically)...");
   await waitForHealth(`http://localhost:${config.port}/agent/health`, 180_000);
   console.log(`✓ Updated. Backend ${config.release}, UI ${config.uiTag}.`);
