@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { userInfo } from "node:os";
 import { confirm } from "./tty";
 
 function run(command: string, args: string[]): { ok: boolean; stdout: string; stderr: string; missing: boolean } {
@@ -64,11 +65,18 @@ export async function dockerPreflight(): Promise<void> {
     if (/permission denied/i.test(info.stderr)) {
       console.log("\nYour user cannot talk to the Docker daemon (not in the `docker` group).");
       const yes = await confirm("Add this user to the docker group now? Uses sudo.", true);
-      if (yes) {
-        spawnSync("sudo", ["usermod", "-aG", "docker", process.env.USER ?? ""], { stdio: "inherit" });
-        fail("Group added. Log out and back in (or reboot), then re-run `agent setup`.");
+      if (!yes) fail("Run `sudo usermod -aG docker $USER`, re-login, then re-run `agent setup`.");
+      const added = spawnSync("sudo", ["usermod", "-aG", "docker", userInfo().username], { stdio: "inherit" });
+      if (added.status !== 0) fail("Could not add the user to the docker group.");
+      // The current session doesn't know about the new group yet; `sg` re-reads
+      // /etc/group, so setup can continue without logging out and back in.
+      // Skipped in dev, where process.execPath is the node binary.
+      if (!process.execPath.endsWith("node")) {
+        console.log("Group added — continuing setup with the new membership...\n");
+        const resumed = spawnSync("sg", ["docker", "-c", `'${process.execPath}' setup`], { stdio: "inherit" });
+        process.exit(resumed.status ?? 1);
       }
-      fail("Run `sudo usermod -aG docker $USER`, re-login, then re-run `agent setup`.");
+      fail("Group added. Log out and back in (or reboot), then re-run `agent setup`.");
     }
     if (process.platform === "darwin") {
       await startDockerMac();

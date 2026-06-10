@@ -23,13 +23,11 @@ fi
 [ -n "$tag" ] || { echo "Could not determine the latest release of $REPO." >&2; exit 1; }
 
 base="https://github.com/$REPO/releases/download/$tag"
-dir=/usr/local/bin
-[ -d "$dir" ] && [ -w "$dir" ] || dir="$HOME/.local/bin"
-mkdir -p "$dir"
 
 echo "Downloading agent $tag ($target)..."
 tmp="$(mktemp)"
-curl -fsSL "$base/agent-$target" -o "$tmp"
+# Progress bar on purpose: the binary is large and a silent download looks stuck.
+curl -f#SL "$base/agent-$target" -o "$tmp"
 
 expected="$(curl -fsSL "$base/agent-$target.sha256" | awk '{print $1}')"
 if command -v shasum >/dev/null 2>&1; then
@@ -40,12 +38,37 @@ fi
 [ "$actual" = "$expected" ] || { echo "Checksum verification failed." >&2; rm -f "$tmp"; exit 1; }
 
 chmod +x "$tmp"
-mv "$tmp" "$dir/agent"
+
+# Prefer /usr/local/bin (already on PATH everywhere → `agent` works right away,
+# in this shell too). Fall back to ~/.local/bin only when sudo isn't an option.
+dir=/usr/local/bin
+if [ -w "$dir" ]; then
+  mv "$tmp" "$dir/agent"
+elif command -v sudo >/dev/null 2>&1; then
+  echo "Installing to $dir (needs sudo)..."
+  if [ -t 0 ] || [ ! -e /dev/tty ]; then
+    sudo install -m 755 "$tmp" "$dir/agent"
+  else
+    sudo install -m 755 "$tmp" "$dir/agent" < /dev/tty
+  fi
+  rm -f "$tmp"
+else
+  dir="$HOME/.local/bin"
+  mkdir -p "$dir"
+  mv "$tmp" "$dir/agent"
+fi
 echo "Installed agent $tag to $dir/agent"
 
 case ":$PATH:" in
   *":$dir:"*) ;;
-  *) echo "NOTE: add $dir to your PATH (e.g. in ~/.zshrc or ~/.bashrc)." ;;
+  *)
+    rc="$HOME/.bashrc"
+    case "${SHELL:-}" in */zsh) rc="$HOME/.zshrc" ;; esac
+    if ! grep -qs "$dir" "$rc"; then
+      printf '\nexport PATH="%s:$PATH"\n' "$dir" >> "$rc"
+    fi
+    echo "Added $dir to PATH in $rc (new shells pick it up automatically)."
+    ;;
 esac
 
 # Under `curl | bash` stdin is the script stream — give setup the real terminal.
