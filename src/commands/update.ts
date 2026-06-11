@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { composeOrThrow, waitForHealth } from "../compose";
 import { loadConfig, saveConfig } from "../config";
 import { render } from "../render";
-import { CLI_REPO, CLI_VERSION, seaTarget } from "../version";
+import { BACKEND_IMAGE, CLI_REPO, CLI_VERSION, seaTarget, UI_IMAGE } from "../version";
 
 interface Manifest {
   cli: string;
@@ -76,6 +76,15 @@ export async function update(args: string[]): Promise<void> {
   }
 
   console.log(`Updating: backend ${config.release} → ${manifest.backend}, ui ${config.uiTag} → ${manifest.ui}`);
+  // Resolved before the tags change; removed only after the new stack is healthy,
+  // so the previous images stay available for a rollback if the update fails.
+  // AGENT_IMAGE / AGENT_UI_IMAGE mean the config tag isn't what's deployed — skip those.
+  const oldImages = [
+    ...(!process.env.AGENT_IMAGE && manifest.backend !== config.release
+      ? [`${BACKEND_IMAGE}:${config.release}`]
+      : []),
+    ...(!process.env.AGENT_UI_IMAGE && manifest.ui !== config.uiTag ? [`${UI_IMAGE}:${config.uiTag}`] : []),
+  ];
   config.release = manifest.backend;
   config.uiTag = manifest.ui;
   render(config);
@@ -87,6 +96,11 @@ export async function update(args: string[]): Promise<void> {
   saveConfig(config);
   console.log("Waiting for the app to become healthy (migrations run automatically)...");
   await waitForHealth(`http://localhost:${config.port}/agent/health`, 180_000);
+  for (const ref of oldImages) {
+    // Best-effort: a failure (image already gone, still in use elsewhere) is not an update failure.
+    const removed = spawnSync("docker", ["image", "rm", ref], { encoding: "utf8" });
+    if (removed.status === 0) console.log(`Removed old image ${ref}.`);
+  }
   console.log(`✓ Updated. Backend ${config.release}, UI ${config.uiTag}.`);
 }
 
