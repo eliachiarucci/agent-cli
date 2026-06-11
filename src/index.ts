@@ -1,4 +1,4 @@
-import { configGet, configSet } from "./commands/config";
+import { configGet, configRebuild, configSet } from "./commands/config";
 import { logs, restart, setup, start, status, stop, uninstall } from "./commands/setup";
 import { selfUpdate, update } from "./commands/update";
 import { users } from "./commands/users";
@@ -16,6 +16,7 @@ Usage:
   agent users remove <username>
   agent config get [key]           Show configuration
   agent config set <key> <value>   Change port, appOrigin, or startWebUi
+  agent config rebuild [--force]   Reconstruct a lost/corrupt config.json from the runtime files
   agent update                     Update CLI, images, and database schema
   agent self-update                Update only the CLI binary
   agent uninstall                  Remove the stack (data wiped only on confirm)
@@ -42,7 +43,8 @@ async function main(): Promise<void> {
     case "config":
       if (args[0] === "get") return configGet(args[1]);
       if (args[0] === "set" && args[1] && args[2] !== undefined) return configSet(args[1], args[2]);
-      console.error("Usage: agent config get [key] | agent config set <key> <value>");
+      if (args[0] === "rebuild") return configRebuild(args.includes("--force"));
+      console.error("Usage: agent config get [key] | agent config set <key> <value> | agent config rebuild [--force]");
       process.exitCode = 1;
       return;
     case "update":
