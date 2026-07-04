@@ -8,7 +8,8 @@
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "build": "node build.mjs",
-    "build:sea": "bash build-sea.sh"
+    "build:sea": "bash build-sea.sh",
+    "release": "tsx scripts/release.ts"
   },
   "license": "MIT",
   "devDependencies": {
