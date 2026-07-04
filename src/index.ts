@@ -1,3 +1,4 @@
+import { backup } from "./commands/backup";
 import { configGet, configRebuild, configSet } from "./commands/config";
 import { logs, restart, setup, start, status, stop, uninstall } from "./commands/setup";
 import { selfUpdate, update } from "./commands/update";
@@ -17,6 +18,7 @@ Usage:
   agent config get [key]           Show configuration
   agent config set <key> <value>   Change port, appOrigin, or startWebUi
   agent config rebuild [--force]   Reconstruct a lost/corrupt config.json from the runtime files
+  agent backup [path] [--files]    Dump the database (and, with --files, agent-created files)
   agent update                     Update CLI, images, and database schema
   agent self-update                Update only the CLI binary
   agent uninstall                  Remove the stack (data wiped only on confirm)
@@ -47,6 +49,8 @@ async function main(): Promise<void> {
       console.error("Usage: agent config get [key] | agent config set <key> <value> | agent config rebuild [--force]");
       process.exitCode = 1;
       return;
+    case "backup":
+      return backup(args);
     case "update":
       return update(args);
     case "self-update":

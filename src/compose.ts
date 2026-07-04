@@ -17,6 +17,20 @@ export function composeOrThrow(args: string[], options: SpawnSyncOptions = {}): 
   if (status !== 0) throw new Error(`docker compose ${args.join(" ")} failed (exit ${status})`);
 }
 
+/**
+ * Runs `docker compose <args>` with stdout written straight to an open file
+ * descriptor — binary-safe and unbuffered (spawnSync's captured stdout is
+ * capped by maxBuffer, which a database dump would blow through).
+ */
+export function composeToFd(args: string[], fd: number): { status: number; stderr: string } {
+  const result = spawnSync("docker", [...BASE_ARGS, ...args], {
+    stdio: ["ignore", fd, "pipe"],
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  return { status: result.status ?? 1, stderr: result.stderr ?? "" };
+}
+
 /** Runs `docker compose <args>` and returns captured stdout. */
 export function composeOutput(args: string[]): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("docker", [...BASE_ARGS, ...args], { encoding: "utf8" });

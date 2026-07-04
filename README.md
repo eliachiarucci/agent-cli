@@ -28,6 +28,7 @@ agent logs [service] [-f]        Tail logs (app, ui, db, searxng)
 agent users list|create|remove   Manage accounts (signup is CLI-only)
 agent config get [key]           Show configuration
 agent config set <key> <value>   port, appOrigin, startWebUi
+agent backup [path] [--files]    Dump the database (and, with --files, agent-created files)
 agent update                     Update CLI, images, and database schema
 agent self-update                Update only the CLI binary
 agent uninstall                  Remove the stack (data wiped only on confirm)

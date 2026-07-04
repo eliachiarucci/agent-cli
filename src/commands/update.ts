@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { composeOrThrow, waitForHealth } from "../compose";
-import { loadConfig, saveConfig } from "../config";
+import { loadConfig, saveConfig, RUNTIME_DIR } from "../config";
 import { render } from "../render";
 import { BACKEND_IMAGE, CLI_REPO, CLI_VERSION, seaTarget, UI_IMAGE } from "../version";
 
@@ -58,6 +58,17 @@ async function replaceBinary(tag: string): Promise<void> {
   }
 }
 
+/** Image refs in the rendered compose file — the record of what's deployed. */
+function deployedImages(): string[] {
+  let yaml: string;
+  try {
+    yaml = readFileSync(join(RUNTIME_DIR, "docker-compose.yml"), "utf8");
+  } catch {
+    return [];
+  }
+  return [...yaml.matchAll(/^\s+image:\s*(\S+)/gm)].map((match) => match[1]);
+}
+
 export async function update(args: string[]): Promise<void> {
   const config = loadConfig();
   const manifest = await fetchManifest();
@@ -70,24 +81,41 @@ export async function update(args: string[]): Promise<void> {
     process.exit(result.status ?? 1);
   }
 
-  if (manifest.backend === config.release && manifest.ui === config.uiTag) {
+  // Diff the rendered compose file across the re-render: backend/ui move via
+  // the manifest tags, db/searxng move when this CLI build ships new pins in
+  // the compose template. Anything that drops out of the file is stale.
+  const tagsChanged = manifest.backend !== config.release || manifest.ui !== config.uiTag;
+  const before = deployedImages();
+  config.release = manifest.backend;
+  config.uiTag = manifest.ui;
+  render(config);
+  const after = deployedImages();
+  const stale = before.filter((ref) => !after.includes(ref));
+  const fresh = after.filter((ref) => !before.includes(ref));
+
+  if (!tagsChanged && stale.length === 0 && fresh.length === 0) {
     console.log(`Already up to date (backend ${config.release}, ui ${config.uiTag}).`);
     return;
   }
 
-  console.log(`Updating: backend ${config.release} → ${manifest.backend}, ui ${config.uiTag} → ${manifest.ui}`);
-  // Resolved before the tags change; removed only after the new stack is healthy,
-  // so the previous images stay available for a rollback if the update fails.
-  // AGENT_IMAGE / AGENT_UI_IMAGE mean the config tag isn't what's deployed — skip those.
-  const oldImages = [
-    ...(!process.env.AGENT_IMAGE && manifest.backend !== config.release
-      ? [`${BACKEND_IMAGE}:${config.release}`]
-      : []),
-    ...(!process.env.AGENT_UI_IMAGE && manifest.ui !== config.uiTag ? [`${UI_IMAGE}:${config.uiTag}`] : []),
-  ];
-  config.release = manifest.backend;
-  config.uiTag = manifest.ui;
-  render(config);
+  if (fresh.length > 0) {
+    const repo = (ref: string) => ref.slice(0, ref.lastIndexOf(":"));
+    console.log("Updating:");
+    for (const ref of fresh) {
+      const old = stale.find((s) => repo(s) === repo(ref));
+      console.log(old ? `  ${old} → ${ref}` : `  + ${ref}`);
+    }
+  } else {
+    console.log(`Updating: backend → ${manifest.backend}, ui → ${manifest.ui}`);
+  }
+  // Removed only after the new stack is healthy, so the previous images stay
+  // available for a rollback if the update fails. AGENT_IMAGE / AGENT_UI_IMAGE
+  // mean the rendered ref isn't what's actually deployed — skip those repos.
+  const oldImages = stale.filter(
+    (ref) =>
+      !(process.env.AGENT_IMAGE && ref.startsWith(`${BACKEND_IMAGE}:`)) &&
+      !(process.env.AGENT_UI_IMAGE && ref.startsWith(`${UI_IMAGE}:`))
+  );
 
   composeOrThrow(["pull"]);
   composeOrThrow(["up", "-d", "--remove-orphans"]);
