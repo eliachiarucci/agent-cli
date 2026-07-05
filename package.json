@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "build": "node build.mjs",
     "build:sea": "bash build-sea.sh",
-    "release": "tsx scripts/release.ts"
+    "release": "tsx scripts/release.ts",
+    "release:cli": "tsx scripts/release-cli.ts"
   },
   "license": "MIT",
   "devDependencies": {
