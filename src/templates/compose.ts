@@ -54,7 +54,7 @@ services:
       start_period: 30s${appPorts}
 ${uiService}
   searxng:
-    image: searxng/searxng:2026.6.8-f3fab143b
+    image: searxng/searxng:2026.7.5-fd5eb84a3
     restart: unless-stopped
     volumes:
       - ./searxng:/etc/searxng
