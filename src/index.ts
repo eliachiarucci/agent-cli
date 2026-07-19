@@ -14,6 +14,7 @@ Usage:
   agent logs [service] [-f]        Tail logs (services: app, ui, db, searxng)
   agent users list                 List accounts
   agent users create <username> [--name "Full Name"]
+  agent users set-password <username>
   agent users remove <username>
   agent config get [key]           Show configuration
   agent config set <key> <value>   Change port, appOrigin, or startWebUi
