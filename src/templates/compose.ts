@@ -1,12 +1,14 @@
 import type { AgentConfig } from "../config";
-import { BACKEND_IMAGE, UI_IMAGE } from "../version";
+import { BACKEND_IMAGE, PIPER_IMAGE, UI_IMAGE } from "../version";
 
 // The CLI is the template engine: everything is rendered to concrete values,
 // no compose ${} interpolation and no user-facing .env. AGENT_IMAGE /
-// AGENT_UI_IMAGE override the image refs for local development (`:dev` builds).
+// AGENT_UI_IMAGE / AGENT_PIPER_IMAGE override the image refs for local development (`:dev` builds).
 export function composeYaml(config: AgentConfig): string {
   const appImage = process.env.AGENT_IMAGE ?? `${BACKEND_IMAGE}:${config.release}`;
   const uiImage = process.env.AGENT_UI_IMAGE ?? `${UI_IMAGE}:${config.uiTag}`;
+  // Piper ships with the backend release, so it follows the backend's tag.
+  const piperImage = process.env.AGENT_PIPER_IMAGE ?? `${PIPER_IMAGE}:${config.release}`;
 
   const appPorts = config.startWebUi
     ? ""
@@ -46,6 +48,8 @@ services:
         condition: service_healthy
       searxng:
         condition: service_started
+      piper:
+        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/agent/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 10s
@@ -53,6 +57,11 @@ services:
       retries: 12
       start_period: 30s${appPorts}
 ${uiService}
+  # Text to speech for devices (the rover's speaker); internal only.
+  piper:
+    image: ${piperImage}
+    restart: unless-stopped
+
   searxng:
     image: searxng/searxng:2026.7.5-fd5eb84a3
     restart: unless-stopped
@@ -87,6 +96,7 @@ export function appEnv(config: AgentConfig): string {
     `BETTER_AUTH_SECRET=${config.secrets.betterAuthSecret}`,
     `APP_ORIGIN=${config.appOrigin}`,
     `SEARXNG_URL=http://searxng:8080`,
+    `PIPER_URL=http://piper:5000`,
     `TRANSFORMERS_CACHE=/models`,
     `FILES_DIR=/files`,
     `MIGRATE=on`,

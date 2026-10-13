@@ -11,6 +11,8 @@ export const GITHUB_OWNER = "eliachiarucci";
 export const CLI_REPO = `${GITHUB_OWNER}/agent-cli`;
 export const BACKEND_IMAGE = `ghcr.io/${GITHUB_OWNER}/agent`;
 export const UI_IMAGE = `ghcr.io/${GITHUB_OWNER}/agent-ui`;
+/** Piper text to speech for device speech, released with the backend (same tag). */
+export const PIPER_IMAGE = `ghcr.io/${GITHUB_OWNER}/agent-piper`;
 
 function manifestFallback(): { cli: string; backend: string; ui: string } {
   return JSON.parse(readFileSync(join(__dirname, "..", "versions.json"), "utf8"));
