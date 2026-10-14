@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds a Node SEA (single executable application) binary for the current
-# platform. Output: dist/agent-<target> + dist/agent-<target>.sha256
+# Builds the Node SEA (single executable application) binaries for the current
+# platform: dist/agent-<target> and dist/agent-device-<target>, each with a .sha256.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -11,24 +11,29 @@ case "$(uname -s)-$(uname -m)" in
   *) echo "Unsupported platform: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
 esac
 
-OUT="dist/agent-$TARGET"
-
 node build.mjs
-node --experimental-sea-config sea-config.json
 
-cp "$(command -v node)" "$OUT"
+# sea <name>: dist/<name>.cjs → dist/<name>-<target>
+sea() {
+  local name=$1 out="dist/$1-$TARGET"
+  printf '{"main":"dist/%s.cjs","output":"dist/%s.blob","disableExperimentalSEAWarning":true}' "$name" "$name" \
+    > "dist/$name.sea.json"
+  node --experimental-sea-config "dist/$name.sea.json"
+  cp "$(command -v node)" "$out"
+  if [ "$(uname -s)" = "Darwin" ]; then
+    codesign --remove-signature "$out"
+    npx --yes postject "$out" NODE_SEA_BLOB "dist/$name.blob" \
+      --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
+      --macho-segment-name NODE_SEA
+    # Ad-hoc signature: required to run at all on arm64 macs.
+    codesign --sign - "$out"
+  else
+    npx --yes postject "$out" NODE_SEA_BLOB "dist/$name.blob" \
+      --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+  fi
+  (cd dist && shasum -a 256 "$name-$TARGET" > "$name-$TARGET.sha256")
+  echo "[build-sea] $out ($(du -h "$out" | cut -f1 | tr -d ' '))"
+}
 
-if [ "$(uname -s)" = "Darwin" ]; then
-  codesign --remove-signature "$OUT"
-  npx --yes postject "$OUT" NODE_SEA_BLOB dist/sea-prep.blob \
-    --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
-    --macho-segment-name NODE_SEA
-  # Ad-hoc signature: required to run at all on arm64 macs.
-  codesign --sign - "$OUT"
-else
-  npx --yes postject "$OUT" NODE_SEA_BLOB dist/sea-prep.blob \
-    --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-fi
-
-(cd dist && shasum -a 256 "agent-$TARGET" > "agent-$TARGET.sha256")
-echo "[build-sea] $OUT ($(du -h "$OUT" | cut -f1 | tr -d ' '))"
+sea agent
+sea agent-device

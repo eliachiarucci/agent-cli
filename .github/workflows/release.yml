@@ -35,13 +35,17 @@ jobs:
           fi
       - run: CLI_VERSION=${{ github.ref_name }} bash build-sea.sh
       - name: smoke test
-        run: ./dist/agent-${{ matrix.target }} --version
+        run: |
+          ./dist/agent-${{ matrix.target }} --version
+          ./dist/agent-device-${{ matrix.target }} --version
       - uses: actions/upload-artifact@v4
         with:
           name: agent-${{ matrix.target }}
           path: |
             dist/agent-${{ matrix.target }}
             dist/agent-${{ matrix.target }}.sha256
+            dist/agent-device-${{ matrix.target }}
+            dist/agent-device-${{ matrix.target }}.sha256
 
   release:
     needs: sea

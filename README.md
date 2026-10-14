@@ -34,6 +34,32 @@ agent self-update                Update only the CLI binary
 agent uninstall                  Remove the stack (data wiped only on confirm)
 ```
 
+## Devices: agent-device
+
+A device is a computer with a camera, a microphone or a speaker (a laptop, a Raspberry Pi, a robot) that an agent
+sees, hears and speaks through. `agent-device` is its client, built and released here next to `agent`
+(`src/device/`, binaries `agent-device-<platform>`). Nobody installs it by hand: the web UI's Settings → Devices →
+Add device shows a command that the agent server serves, which installs it (and ffmpeg), asks for the devices,
+pairs it with a one-time code and starts it:
+
+```sh
+curl -fsSL https://agent.example.com/agent/devices/install.sh | sh -s -- ABCDE-FGHJK
+```
+
+```
+agent-device [run]                 Connect and stream (asks for the devices on the first run)
+agent-device setup                 Choose the camera, microphone and speaker
+agent-device devices               List the cameras and microphones
+agent-device status                Show the pairing, the chosen devices and the service
+sudo agent-device service install  Run it as a service, started at boot (Linux, systemd)
+```
+
+It keeps its pairing in `~/.config/agent-device/device.json` and its choices in `settings.json` next to it. It
+captures with ffmpeg (avfoundation on macOS, V4L2 and ALSA on Linux), sends a frame when the view changes and a
+heartbeat as the server's settings say, crops regions for the agent's `zoom`, streams speech with a simple voice
+detector (muted while a reply plays, unless the speaker is headphones), and plays replies with afplay or aplay.
+On macOS it runs in a terminal: background processes don't get the camera and microphone permission.
+
 ## How it works
 
 - `~/.agent/config.json` is the single source of truth (no `.env` files). The CLI renders `~/.agent/runtime/{docker-compose.yml, app.env, searxng/settings.yml}` from it before every operation.
@@ -47,7 +73,8 @@ agent uninstall                  Remove the stack (data wiped only on confirm)
 npm install
 npm run dev -- status                  # run from source (tsx)
 npm run typecheck
-npm run build:sea                      # build the SEA binary for this platform
+npm run build:sea                      # build both SEA binaries (agent, agent-device) for this platform
+npx tsx src/device/index.ts status     # agent-device from source (AGENT_DEVICE_DIR to use another config folder)
 ```
 
 Use locally built images with:
@@ -61,5 +88,5 @@ AGENT_HOME=/tmp/agent-test npm run dev -- setup
 ## Releasing
 
 1. Bump `cli` in `versions.json` (and `backend`/`ui` to the image tags this release should pin).
-2. Tag the commit with the same version (`git tag v0.2.0 && git push --tags`) — CI builds the binaries and creates the GitHub release.
+2. Tag the commit with the same version (`git tag v0.2.0 && git push --tags`) — CI builds the binaries (`agent` and `agent-device`) and creates the GitHub release. The device install script downloads `agent-device` from the latest release.
 3. Backend/UI-only rollouts don't need a CLI release: tag the backend/UI repos (their CI pushes images), then bump `backend`/`ui` in `versions.json` on `main` — `agent update` picks it up.
